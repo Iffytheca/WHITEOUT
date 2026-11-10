@@ -21,6 +21,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:#000;font-family:"Sego
 .panel{background:rgba(5,9,13,.92);border:1px solid #3c4e5c;padding:26px 34px;max-width:640px;line-height:1.55;font-size:16px}
 .panel h3{margin:0 0 10px;letter-spacing:4px;color:#cfe0ea}
 #hud{position:fixed;inset:0;pointer-events:none;z-index:10;display:none}
+#notice{position:absolute;top:14px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:9px;font-size:13px;letter-spacing:2px;text-shadow:0 0 6px #000;background:rgba(8,12,16,.5);padding:6px 11px;border:1px solid rgba(200,225,240,.2)}#nDot{width:14px;height:14px;border-radius:50%;background:#555;box-shadow:0 0 8px currentColor;color:#555}
 #obj{position:absolute;top:18px;left:22px;font-size:17px;text-shadow:0 0 6px #000;max-width:45%}
 #obj small{display:block;color:#8fa3b0;font-size:13px;letter-spacing:2px}
 #timer{position:absolute;top:16px;left:50%;transform:translateX(-50%);font-size:30px;letter-spacing:4px;color:#ffcf6a;text-shadow:0 0 10px #000;display:none}
@@ -38,7 +39,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:#000;font-family:"Sego
  background:repeating-linear-gradient(180deg,#000 0,#000 34px,rgba(0,0,0,0) 34px,rgba(0,0,0,0) 52px);
  -webkit-mask:radial-gradient(ellipse 45% 40% at center,rgba(0,0,0,.75),#000);}
 #ventEdge{position:fixed;inset:0;z-index:9;display:none;pointer-events:none;box-shadow:inset 0 0 200px 120px #000}
-#breath{position:absolute;left:50%;bottom:60px;transform:translateX(-50%);width:260px;text-align:center;font-size:12px;letter-spacing:2px;display:none}
+#breath{position:absolute;left:50%;bottom:112px;transform:translateX(-50%);width:260px;text-align:center;font-size:12px;letter-spacing:2px;display:none}
 #breath .bar i{background:#7fd0ff}
 #red{position:fixed;inset:0;z-index:11;pointer-events:none;background:#600;opacity:0}
 #fade{position:fixed;inset:0;z-index:12;pointer-events:none;background:#000;opacity:0;transition:opacity 1.2s}
@@ -80,7 +81,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:#000;font-family:"Sego
 <div id="vent"></div><div id="ventEdge"></div>
 <canvas id="grain" width="200" height="120"></canvas><div id="red"></div><div id="fade"></div>
 <div id="hud">
- <div id="obj"></div>
+ <div id="obj"></div><div id="notice"><span id="nDot"></span><span id="nTxt"></span></div>
  <div id="timer"></div>
  <div id="cross"></div>
  <div id="prompt"></div>
@@ -90,7 +91,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:#000;font-family:"Sego
  <div id="loc"></div>
  <div id="selName"></div>
  <div id="hot"></div>
- <div id="breath">BREATH (hold SPACE)<div class="bar"><i></i></div></div>
+ <div id="breath">HEARTBEAT - tap SPACE / click / touch<div class="bar" style="position:relative;height:12px"><i></i><s style="position:absolute;left:38%;width:24%;top:-3px;bottom:-3px;border:1px solid #5cff8a;background:rgba(92,255,138,.18)"></s></div></div>
 </div>
 <div class="ov show" id="title">
  <h1>WHITEOUT</h1>
@@ -314,7 +315,7 @@ function roomAt(x,z){const c=tileOf(x),r=tileOf(z);for(const R of ROOMS)if(c>=R.
 
 /* ================= GAME STATE ================= */
 const G={stage:1,beacon:false,heliLanded:false,loudT:0,penguins:0,hasMap:false,panelOpen:false,trapped:false,state:'title',power:false,called:false,rescueT:120,exitOpen:false,won:false,t:0,notes:0,startTime:0,nextHunt:25,exitNoiseT:-1};
-const P={warm:1,jacket:false,coldMsg:0,x:tc(3),z:tc(8),yaw:-Math.PI/2,pitch:0,eye:1.65,crouch:false,stam:1,bat:1,light:true,hidden:null,breath:1,holding:false,bob:0,noiseT:0,noise:0,lastBreathNoise:0,moving:false,speed:0,heartT:0,shake:0};
+const P={warm:1,jacket:false,coldMsg:0,x:tc(3),z:tc(8),yaw:-Math.PI/2,pitch:0,eye:1.65,crouch:false,stam:1,bat:1,light:true,hidden:null,breath:1,holding:false,hb:.5,hbOut:false,hbBad:0,pulse:0,hbTapT:0,bob:0,noiseT:0,noise:0,lastBreathNoise:0,moving:false,speed:0,heartT:0,shake:0};
 
 /* ================= RENDERER ================= */
 const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
@@ -753,10 +754,11 @@ function coldUpdate(dt){const outside=P.x>BW*T;let near=false;for(const F of FIR
   $('cold').style.opacity=clamp((.55-P.warm)*1.8,0,.9).toFixed(2);$('warmBar').firstChild.style.width=(P.warm*100)+'%';
   if(P.warm<=0&&G.state==='play')caught('cold');}
 function playerUpdate(dt){coldUpdate(dt);
-  if(P.hidden){P.holding=!!keys[' '];if(P.holding){P.breath-=dt/6;if(P.breath<=0){P.breath=0;P.holding=false;keys[' ']=false;SFX.breath(.9);makeNoise(P.hidden.fx,P.hidden.fz,7,'breath');P.breath=.25;msg('You gasp for air...',2);}}
-    else P.breath=Math.min(1,P.breath+dt/4);
-    const d=Math.hypot(MON.x-P.hidden.fx,MON.z-P.hidden.fz);
-    if(!P.holding&&d<4.5&&G.t-P.lastBreathNoise>1.1){P.lastBreathNoise=G.t;makeNoise(P.hidden.fx,P.hidden.fz,3.4,'breath');}
+  if(P.hidden){const dl=Math.hypot(MON.x-P.hidden.fx,MON.z-P.hidden.fz);const mAct=MON.state!=='dormant'&&MON.state!=='gone'&&MON.state!=='falling';
+    const rise=.09+(mAct?clamp(1-dl/12,0,1)*.13:0);P.hb=clamp(P.hb+rise*dt,0,1);
+    P.hbOut=P.hb<HB_LO||P.hb>HB_HI;P.hbBad=P.hbOut?P.hbBad+dt:Math.max(0,P.hbBad-dt*2);
+    if(P.hbOut&&dl<7&&G.t-P.lastBreathNoise>.9){P.lastBreathNoise=G.t;if(P.hb>HB_HI)SFX.heart(.5);else SFX.breath(.5);makeNoise(P.hidden.fx,P.hidden.fz,dl<3?5.5:4.2,'breath');}
+    P.heartT-=dt;if(P.heartT<=0){P.heartT=lerp(1.15,.32,P.hb);SFX.heart(.18+P.hb*.4);P.pulse=1;}
     P.noise=Math.max(0,P.noise-dt*.8);return;}
   let mx=0,mz=0;if(keys['w']||keys['arrowup'])mz+=1;if(keys['s']||keys['arrowdown'])mz-=1;if(keys['a'])mx-=1;if(keys['d'])mx+=1;{const tr=(keys['arrowleft']?1:0)-(keys['arrowright']?1:0);if(tr)P.yaw+=tr*dt*2.3*SET.sens;const tp=(keys['pageup']?1:0)-(keys['pagedown']?1:0);if(tp)P.pitch=clamp(P.pitch+tp*dt*1.6,-1.3,1.3);}
   const moving=mx||mz;const wantRun=keys['shift']&&moving&&!P.crouch&&mz>=0;
@@ -778,8 +780,9 @@ function playerUpdate(dt){coldUpdate(dt);
   // outside / win
   if(G.heliLanded&&Math.hypot(P.x-HX,P.z-HZ)<3.6)win();
 }
-function enterLocker(Lk){if(P.hidden)return;P.hidden=Lk;P.breath=1;SFX.locker();makeNoise(Lk.fx,Lk.fz,4,'locker');Lk.anim=1;
-  P.x=Lk.inX;P.z=Lk.inZ;P.yaw=Lk.yaw;Lk.hinge.visible=false;P.pitch=0;P.crouch=false;$('vent').style.display=$('ventEdge').style.display='block';$('breath').style.display='block';msg('Hold SPACE to hold your breath when it comes close.',3);}
+function heartTap(){if(!P.hidden||G.state!=='play')return;P.hb=clamp(P.hb-.1,0,1);P.hbTapT=G.t;tone(150,.04,'sine',.05);}
+function enterLocker(Lk){if(P.hidden)return;P.hidden=Lk;P.breath=1;P.hb=.5;P.hbBad=0;P.hbOut=false;SFX.locker();makeNoise(Lk.fx,Lk.fz,4,'locker');Lk.anim=1;
+  P.x=Lk.inX;P.z=Lk.inZ;P.yaw=Lk.yaw;Lk.hinge.visible=false;P.pitch=0;P.crouch=false;$('vent').style.display=$('ventEdge').style.display='block';$('breath').style.display='block';msg('Keep your HEARTBEAT in the green: tap SPACE (or click / touch). Too slow or too fast and it hears you.',4.5);}
 function leaveLocker(){const Lk=P.hidden;if(!Lk)return;P.hidden=null;Lk.hinge.visible=true;SFX.locker();makeNoise(Lk.fx,Lk.fz,4,'locker');Lk.anim=1;P.x=Lk.fx;P.z=Lk.fz;
   $('vent').style.display=$('ventEdge').style.display='none';$('breath').style.display='none';}
 function takeItem(it){if(it.taken)return;
@@ -833,14 +836,14 @@ function refreshToggles(){document.querySelectorAll('.tog').forEach(b=>{const k=
 document.querySelectorAll('.tog').forEach(b=>b.addEventListener('click',e=>{e.stopPropagation();initAudio();const k=b.dataset.set;if(k==='sens'){SET.sens=SET.sens<.8?1:SET.sens<1.2?1.6:.6;}else SET[k]=!SET[k];saveSet();refreshToggles();if(k==='light')applyLighting();}));
 function applyLighting(){renderer.shadowMap.enabled=SET.light;flash.castShadow=SET.light;
   scene.traverse(o=>{if(o.material){(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>m.needsUpdate=true);}});}
-let currentObj='';
+let currentObj='';let DARK=false;
 function objective(){if(G.pigMode&&inHub())return['DIAPER HUB','Defeat all 5 kinds of diaper pig ('+Object.keys(PIGKILLS).length+'/5). Blue ring = real game'];if(G.heliLanded)return['ESCAPE','RUN to the helicopter in the clearing!'];if(G.beacon)return['SURVIVE','Stay alive until the helicopter lands in the clearing.'];if(G.exitOpen)return['STAGE 2 - THE FOREST','Go through the forest to the WEATHER TOWER and light the beacon.'+(P.jacket?'':' Wear a JACKET!')];if(G.called)return['CALL FOR HELP','Listen to the radio...'];
   if(G.power)return['CALL FOR HELP','Use the radio in the RADIO ROOM.'];const f=invCount('fuse');if(f<3)return['RESTORE POWER','Find the 3 fuses ('+f+'/3)'+(G.panelOpen||invCount('wrench')?'':' and the wrench')];if(!G.panelOpen&&!invCount('wrench'))return['RESTORE POWER','Get the WRENCH from the locked cabinet in STORAGE'];return['RESTORE POWER','Fix the generator (GENERATOR ROOM)'];}
 let hudT=0;
 function hudUpdate(dt){hudT-=dt;if(msgTimer>0){msgTimer-=dt;if(msgTimer<=0)$('msg').style.opacity=0;}
   const R=roomAt(P.x,P.z);const o=objective();const s='<small>'+o[0]+(R?' &nbsp;&middot;&nbsp; '+R.n.toUpperCase():(P.x>BW*T?' &nbsp;&middot;&nbsp; OUTSIDE':''))+'</small>'+o[1];if(s!==currentObj){$('obj').innerHTML=s;currentObj=s;}
   $('batBar').firstChild.style.width=(P.bat*100)+'%';$('stamBar').firstChild.style.width=(P.stam*100)+'%';$('noiseBar').firstChild.style.width=(P.noise*100)+'%';
-  $('breath').querySelector('i').style.width=(P.breath*100)+'%';
+  {const b=$('breath').querySelector('i');b.style.width=(P.hb*100)+'%';b.style.background=P.hbOut?'#ff4a3a':'#5cff8a';P.pulse=Math.max(0,P.pulse-dt*3);$('breath').style.transform='translateX(-50%) scale('+(1+P.pulse*.06)+')';}
   $('inv').innerHTML=(P.jacket?'JACKET: ON<br>':'')+'Notes: '+G.notes+(G.penguins?'<br>Penguins: '+G.penguins+' / 5':'')+(G.hasMap?'<br>[M] Map':'');
   if(G.beacon&&!G.heliLanded){const t=Math.ceil(G.rescueT);$('timer').textContent=Math.floor(t/60)+':'+String(t%60).padStart(2,'0');}
   else if(G.heliLanded)$('timer').textContent='GO!';
@@ -858,6 +861,7 @@ document.addEventListener('pointerlockchange',()=>{locked=document.pointerLockEl
 function startGame(){initAudio();hideOv();$('hud').style.display='block';G.state='play';G.startTime=performance.now();requestLock();
   if(!G.introDone){G.introDone=true;setTimeout(()=>stageTitle('STAGE 1  -  THE STATION'),200);const L=['Station Kestrel, deep in the polar ice. 3:12 AM.','The power is out. The others are gone.','Something is walking the halls. It cannot see you...','...but it can HEAR you. Find 3 fuses and restore the power.'];
     L.forEach((l,i)=>setTimeout(()=>msg(l,4),600+i*4300));}}
+const HB_LO=.38,HB_HI=.62;
 function pause(){if(G.state!=='play')return;G.state='pause';showOv('pause');keys['shift']=keys['w']=keys['a']=keys['s']=keys['d']=false;}
 function resume(){hideOv();G.state='play';requestLock();}
 function caught(how){if(G.state!=='play')return;G.state='dying';if(how==='touch'||how==='locker')MON.state='grab';if(SCARE.skin)SCARE.skin.color.setHex(how==='hush'?0xc4dcef:how==='glimmer'?0x6a6f74:0xd3cdc4);G.dieT=0;G.dieHow=how;if(P.hidden){const Lk=P.hidden;Lk.anim=1;Lk.hinge.visible=true;}
@@ -884,18 +888,21 @@ addEventListener('keydown',e=>{const k=e.key.toLowerCase();if(k===' '||k==='tab'
   if(G.state==='book'){if(k==='b'||k==='escape')closeBook();return;}
   if(G.state==='keypad'){if(k>='0'&&k<='9')kpPress(k);else if(k==='backspace')kpPress('C');else if(k==='enter')kpPress('OK');else if(k==='escape'||k==='e')closeKeypad();return;}
   keys[k]=true;if(G.state!=='play')return;
+  if(k===' '&&!e.repeat)heartTap();
   if(k==='e')interact();else if(k==='f'&&!P.hidden){if(P.bat>0){P.light=!P.light;SFX.click();makeNoise(P.x,P.z,1.5,'player');}}
   else if(k>='1'&&k<='8'){const i=+k-1;if(i<INV.slots){INV.sel=i;renderHot();}}
   else if(k==='x')dropSel();else if(k==='r')useBattery();else if(k==='m'){if(G.hasMap)openMap();else msg('You have no map yet.',1.5);}
   else if(k==='b')openBook('play');
+  else if(k==='n')noticeCheck();
   else if(k==='c')P.crouch=!P.crouch;else if(k==='control')P.crouch=true;else if(k==='g')throwBottle();else if(k==='p')pause();else if(k==='q')swingPick();});
 addEventListener('keyup',e=>{const k=e.key.toLowerCase();keys[k]=false;if(k==='control')P.crouch=false;});
 addEventListener('mousemove',e=>{if(G.state!=='play')return;if(!locked&&!mouseDown)return;P.yaw-=e.movementX*.0022*SET.sens;P.pitch=clamp(P.pitch-e.movementY*.0022*SET.sens,-1.3,1.3);
   if(P.hidden){let d=P.yaw-P.hidden.yaw;while(d>Math.PI)d-=Math.PI*2;while(d<-Math.PI)d+=Math.PI*2;d=clamp(d,-.7,.7);P.yaw=P.hidden.yaw+d;P.pitch=clamp(P.pitch,-.5,.5);}});
-renderer.domElement.addEventListener('mousedown',e=>{if(G.state==='play'&&!locked)requestLock();mouseDown=true;if(e.button===2&&G.state==='play')throwBottle();if(e.button===0&&G.state==='play'&&G.pickaxe&&locked)swingPick();});
+renderer.domElement.addEventListener('mousedown',e=>{if(G.state==='play'&&!locked)requestLock();mouseDown=true;if(G.state==='play'&&P.hidden&&e.button===0)heartTap();if(e.button===2&&G.state==='play')throwBottle();if(e.button===0&&G.state==='play'&&G.pickaxe&&locked)swingPick();});
 addEventListener('mouseup',()=>mouseDown=false);addEventListener('wheel',e=>{if(G.state!=='play')return;INV.sel=(INV.sel+(e.deltaY>0?1:-1)+INV.slots)%INV.slots;renderHot();});addEventListener('contextmenu',e=>e.preventDefault());
 refreshToggles();applyLighting();
 
+const ENVM=[];
 /* ================= INVENTORY ================= */
 const ITEM_DEF={fuse:{name:'FUSE',stack:1},bottle:{name:'GLASS BOTTLE',stack:3},battery:{name:'BATTERY',stack:3},flare:{name:'FLARE',stack:2},
   keycard:{name:'KEYCARD',stack:1},crowbar:{name:'CROWBAR',stack:1},wrench:{name:'WRENCH',stack:1},clock:{name:'ALARM CLOCK',stack:1}};
@@ -1083,7 +1090,7 @@ const dust=new THREE.Points(dustGeo,new THREE.PointsMaterial({color:0xffeedd,siz
 {const es=new THREE.Scene();es.background=new THREE.Color(0x0b0d10);const bm=new THREE.MeshBasicMaterial({color:0x8090a0});
   for(let i=0;i<6;i++){const p=new THREE.Mesh(new THREE.BoxGeometry(2,.2,1),bm);p.position.set(rnd(-4,4),4,rnd(-4,4));es.add(p);}
   const pm=new THREE.PMREMGenerator(renderer);const env=pm.fromScene(es,.04).texture;
-  [M.metal,M.steel,M.dark,M.door,M.wall,floorM,M.hazard].forEach(m=>{m.envMap=env;m.envMapIntensity=m===M.wall||m===floorM?.12:.35;m.needsUpdate=true;});}
+  [M.metal,M.steel,M.dark,M.door,M.wall,floorM,M.hazard].forEach(m=>{m.envMap=env;m.envBase=m.envMapIntensity=m===M.wall||m===floorM?.12:.35;ENVM.push(m);m.needsUpdate=true;});}
 const grainC=$('grain'),grainG=grainC.getContext('2d'),grainImg=grainG.createImageData(200,120);let grainF=0;
 function grainUpdate(){grainF++;if(grainF%2)return;const d=grainImg.data;for(let i=0;i<d.length;i+=4){const v=Math.random()*255;d[i]=d[i+1]=d[i+2]=v;d[i+3]=255;}grainG.putImageData(grainImg,0,0);}
 
@@ -1093,14 +1100,14 @@ function stageTitle(t){$('loc').textContent=t;$('loc').style.opacity=1;locT=4.5;
 function startStage2(){setTimeout(()=>stageTitle('STAGE 2  -  THE FROZEN FOREST'),1500);hushSpawnForest();if(GLIM.on){const t=forestFar(22);if(t){GLIM.x=tc(t[0]);GLIM.z=tc(t[1]);GLIM.fk='';GLIM.state='wander';}}else{glimOn(true);}}
 {const pool=FOREST_TILES.filter(t=>t[0]>33);const pick=()=>pool[Math.floor(Math.random()*pool.length)];['battery','battery','flare','bottle','battery'].forEach(k=>{const t=pick();spawnItem(tc(t[0])+rnd(-.5,.5),.05,tc(t[1])+rnd(-.5,.5),k);});}
 let breathT=0;
-function extrasUpdate(dt){flaresUpdate(dt);saveTick(dt);pigsUpdate(dt);pickUpdate(dt);trapUpdate(dt);hushUpdate(dt);glimUpdate(dt);seenCheck(dt);
+function extrasUpdate(dt){flaresUpdate(dt);noticeUpdate();saveTick(dt);pigsUpdate(dt);pickUpdate(dt);trapUpdate(dt);hushUpdate(dt);glimUpdate(dt);seenCheck(dt);
   const R=roomAt(P.x,P.z);const nm=R?R.n:(P.x>BW*T?'The Forest':null);
   if(nm&&nm!==G.lastRoom){G.lastRoom=nm;if(R)G.visited.add(R.n);$('loc').textContent=nm.toUpperCase();$('loc').style.opacity=.9;locT=2.2;}
   if(locT>0){locT-=dt;if(locT<=0)$('loc').style.opacity=0;}
   if(CAB.open&&CAB.anim<1){CAB.anim=Math.min(1,CAB.anim+dt*1.5);CAB.hinge.rotation.y=-CAB.anim*1.9;}
   if(G.state==='map')drawMap();}
 const BREATHS=[];
-function visualUpdate(dt){const on=P.light&&!P.hidden&&G.state!=='dying'&&P.bat>0;beam.visible=dust.visible=on&&SET.light;beam.material.opacity=.05+(flash.intensity/70)*.03;
+function visualUpdate(dt){for(const m of ENVM)m.envMapIntensity=m.envBase*(DARK?.03:1);grainC.style.opacity=DARK?.35:'';const on=P.light&&!P.hidden&&G.state!=='dying'&&P.bat>0;beam.visible=dust.visible=on&&SET.light;beam.material.opacity=.05+(flash.intensity/70)*.03;
   const a=dustGeo.attributes.position.array;for(let i=0;i<DN;i++){a[i*3]+=Math.sin(G.t*.3+i)*dt*.02;a[i*3+1]+=Math.cos(G.t*.27+i*1.3)*dt*.02-dt*.004;}dustGeo.attributes.position.needsUpdate=true;
   if(P.x>BW*T&&G.state==='play'){breathT-=dt;if(breathT<=0){breathT=rnd(2,3.2);const fx=-Math.sin(P.yaw),fz=-Math.cos(P.yaw);const sp=glow(P.x+fx*.5,P.eye-.15,P.z+fz*.5,0xdde8f0,.25);sp.material.blending=THREE.NormalBlending;sp.material.opacity=.35;BREATHS.push({sp,t:1.4});}}
   for(let i=BREATHS.length-1;i>=0;i--){const b=BREATHS[i];b.t-=dt;b.sp.scale.multiplyScalar(1+dt*.9);b.sp.position.y+=dt*.1;b.sp.material.opacity=Math.max(0,b.t/1.4*.3);if(b.t<=0){scene.remove(b.sp);BREATHS.splice(i,1);}}
@@ -1212,6 +1219,22 @@ function renderBook(){const L=$('bookList');L.innerHTML='';BOOK.forEach((e,i)=>{
     pg.insertAdjacentHTML('beforeend','<h4>UNKNOWN</h4><p>You have not seen this one yet.</p><p style="color:#8fa3b0">Something else is moving in the station. Keep your eyes open... and your flashlight ready.</p>');return;}
   pg.appendChild(portrait(e.id));pg.insertAdjacentHTML('beforeend','<h4>'+e.name+'</h4><div class="tag">'+e.tag+'</div><p>'+e.lore+'</p><p><b>How it hunts:</b> '+e.how+'</p><p><b>How to survive:</b> '+e.survive+'</p>');}
 $('book').addEventListener('click',e=>e.stopPropagation());
+
+/* ================= MONSTER NOTICE METER ================= */
+const NOTICE_TXT=['UNSEEN - nothing has noticed you','HEARD SOMETHING - it cannot find you','COMING - it is near you','HUNTING YOU - RUN or HIDE!'];
+const NOTICE_SHORT=['UNSEEN','HEARD SOMETHING','COMING - NEAR YOU','HUNTING YOU'];
+const NOTICE_COL=['#6a7782','#b4ff3c','#ff9a1f','#ff2a2a'];
+let noticeLv=0,noticeBest='';
+function noticeCalc(){let lv=0;const dM=Math.hypot(MON.x-P.x,MON.z-P.z);
+  if(MON.state==='chase'||MON.state==='grab')lv=3;
+  else if(MON.state==='investigate')lv=dM<14?2:1;
+  else if(MON.state==='search')lv=dM<10?2:1;
+  if(HUSH.on&&G.state==='play'){const d=Math.hypot(HUSH.x-P.x,HUSH.z-P.z);const q=d<7?2:(d<16?1:0);if(q>lv)lv=q;}
+  if(GLIM.on){const d=Math.hypot(GLIM.x-P.x,GLIM.z-P.z);const q=GLIM.state==='chase'?3:(GLIM.state==='search'?(d<10?2:1):0);if(q>lv)lv=q;}
+  return lv;}
+function noticeUpdate(){const lv=G.state==='play'?noticeCalc():noticeLv;if(lv>noticeLv&&G.state==='play'){tone(lv===3?220:lv===2?420:640,.12,'sine',.07);}
+  noticeLv=lv;const d=$('nDot'),t=$('nTxt');d.style.background=d.style.color=NOTICE_COL[lv];t.textContent=NOTICE_SHORT[lv];t.style.color=lv?NOTICE_COL[lv]:'#9fb0bb';}
+function noticeCheck(){const lv=noticeCalc();msg('MONSTER NOTICE: '+NOTICE_TXT[lv],2.6);}
 
 /* ================= DIAPER PIG EASTER EGG ================= */
 const HUB={x0:2*T,x1:24*T,z0:21*T,z1:29*T,sx:tc(4),sz:tc(25)};
@@ -1449,7 +1472,7 @@ if(IS_TOUCH){
   mk('DUCK',R(18,30),'c','tap','sm');
   mk('THROW',R(150,92),'g','tap','sm');
   mk('BATT',R(150,38),'r','tap','sm');
-  mk('HOLD<br>BREATH',R(150,146),' ','hold','sm');
+  mk('HEART<br>TAP',R(150,146),' ','tap','sm');mk('NOTICE',R(214,92),'n','tap','sm');
   const hit=mk('HIT',R(18,166),null,'swing');hit.style.display='none';
   mk('II',{right:'14px',top:'12px'},'p','tap','sm');
   mk('MAP',{right:'64px',top:'12px'},'m','tap','sm');
@@ -1462,6 +1485,7 @@ if(IS_TOUCH){
   const setKeys=(dx,dy)=>{const T0=14;keys.w=dy<-T0;keys.s=dy>T0;keys.a=dx<-T0;keys.d=dx>T0;};
   document.addEventListener('touchstart',e=>{if(G.state!=='play')return;for(const t of e.changedTouches){
       if(t.target.closest&&(t.target.closest('.tb')||t.target.closest('#hot')))continue;
+      if(P.hidden){heartTap();continue;}
       if(t.clientX<innerWidth*.42&&!stick){stick={id:t.identifier,x:t.clientX,y:t.clientY};base.style.display='block';base.style.left=(t.clientX-60)+'px';base.style.top=(t.clientY-60)+'px';$('stickKnob').style.transform='translate(0,0)';}
       else if(t.clientX>=innerWidth*.42&&!look)look={id:t.identifier,x:t.clientX,y:t.clientY};}
     e.preventDefault();},{passive:false});
@@ -1534,17 +1558,18 @@ function jumpscare(dt){const t=G.dieT;
   $('red').style.opacity=clamp(Math.sin(t*25)*.25+.2,0,.5)*(t<1.6?1:0);if(t>1.6)$('fade').style.opacity=1;
   flash.intensity=t<1.5?(Math.random()<.3?8:70):0;}
 const _v=new THREE.Vector3();
-function lightsUpdate(dt){const tt=G.t;const near=Math.hypot(MON.x-P.x,MON.z-P.z);
+function lightsUpdate(dt){const tt=G.t;DARK=!(P.light&&P.bat>0)||!!P.hidden;const near=Math.hypot(MON.x-P.x,MON.z-P.z);
   for(const L of LIGHTS){let it=0,col=0xffe7c4;
     if(G.power){const ramp=clamp((G.t-(G.powerT||0))/2.5,0,1);it=24*ramp;if(ramp<1&&Math.random()<.4)it*=Math.random();if(L.flick){if(Math.sin(tt*7+L.ph)>.6&&Math.random()<.5)it*=rnd(.1,.6);}}
     else if(L.emergency){col=0xff2a1a;it=2.2*(.75+.25*Math.sin(tt*2+L.ph));}
     if(near<6&&Math.random()<.3)it*=rnd(.3,1);
     if(!SET.light)it*=.6;
+    if(DARK)it*=.45;
     L.pl.intensity=it;L.pl.color.setHex(col);L.fm.emissive.setHex(col);L.fm.emissiveIntensity=it>0?Math.min(2.5,it/4):0;}
   // flashlight
   let fi=0;if(P.light&&!P.hidden&&G.state!=='dying'){fi=70*(P.bat<.15?(Math.random()<.15?.2:.8):1);if(near<7&&MON.state!=='dormant'&&Math.random()<.35)fi*=rnd(0,.5);}
   if(G.state!=='dying')flash.intensity=fi;flashFill.intensity=fi>0?.5:0;handG.lens.material.color.setHex(fi>0?0xfff6dd:0x333333);
-  const outside=P.x>BW*T;hemi.intensity=SET.light?(outside?.3:(G.power?.12:.045)):(outside?1.2:(G.power?1.1:.75));scene.fog.color.setHex(outside?0x0b1018:0x010204);scene.background.setHex(outside?0x0b1018:0x010204);scene.fog.density=SET.light?(outside?.055:(G.power?.04:.075)):.03;
+  const outside=P.x>BW*T;hemi.intensity=SET.light?(outside?.3:(G.power?.12:.045))*(DARK?.05:1):(outside?1.2:(G.power?1.1:.75));scene.fog.color.setHex(outside?0x0b1018:0x010204);scene.background.setHex(outside?0x0b1018:0x010204);scene.fog.density=SET.light?(outside?.055:(G.power?.04:.075)):.03;
   for(const F of FIRES){F.light.intensity=12+Math.random()*5;F.spr.forEach((sp,i)=>{sp.position.y=1.1+i*.15+Math.random()*.08;sp.material.opacity=.5+Math.random()*.4;});}
   if(G.beacon&&G.beaconL)G.beaconL.intensity=Math.sin(tt*6)>0?40:6;
   if(G.exitOpen)flare.intensity=18+Math.random()*10;}
@@ -1574,7 +1599,7 @@ camera.position.set(P.x,P.eye,P.z);camera.rotation.set(0,P.yaw,0);
 setTimeout(()=>{if(MON.state==='dormant'&&G.state==='title'){}} ,0);
 frame();
 // test hooks
-window.WO={PIGS,PIGKILLS,swingPick,startPigMode,inHub,HUB,TOWER:[WX,WZ,HX,HZ],HUSH,GLIM,BOOKSEEN:()=>PROG.monsters,INV,invAdd,invCount,TRAP,PROG,sim(sec){for(let i=0;i<sec*30;i++)update(1/30);},G,P,MON,DOORS,ITEMS,LOOPS,makeNoise,startGame,openExit,caught,takeItem,startGenerator,useRadio,setWander,SET};
+window.WO={LOCKERS,enterLocker,heartTap,noticeCalc,get DARK(){return DARK;},HB:()=>[P.hb,P.hbOut,P.hbBad],PIGS,PIGKILLS,swingPick,startPigMode,inHub,HUB,TOWER:[WX,WZ,HX,HZ],HUSH,GLIM,BOOKSEEN:()=>PROG.monsters,INV,invAdd,invCount,TRAP,PROG,sim(sec){for(let i=0;i<sec*30;i++)update(1/30);},G,P,MON,DOORS,ITEMS,LOOPS,makeNoise,startGame,openExit,caught,takeItem,startGenerator,useRadio,setWander,SET};
 })();
 
 </script>
